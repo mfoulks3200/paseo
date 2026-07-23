@@ -33,6 +33,8 @@ import {
   Paperclip,
 } from "lucide-react-native";
 import Animated from "react-native-reanimated";
+import { AccessoryShell } from "@/composer/accessories/accessory-shell";
+import { useComposerAccessory } from "@/composer/accessories/context";
 import { FOOTER_HEIGHT, MAX_CONTENT_WIDTH } from "@/constants/layout";
 import {
   AgentControls,
@@ -344,7 +346,7 @@ function renderAttachmentTray(args: RenderAttachmentTrayArgs): ReactElement | nu
   );
 }
 
-interface RenderQueueTrackArgs {
+interface QueueTrackProps {
   queuedMessages: readonly QueuedMessage[];
   handleEditQueuedMessage: (id: string) => void;
   handleSendQueuedNow: (id: string) => Promise<void>;
@@ -352,12 +354,22 @@ interface RenderQueueTrackArgs {
   sendNowLabel: string;
 }
 
-function renderQueueTrack(args: RenderQueueTrackArgs): ReactElement | null {
-  const { queuedMessages, handleEditQueuedMessage, handleSendQueuedNow, editLabel, sendNowLabel } =
-    args;
+function QueueTrack({
+  queuedMessages,
+  handleEditQueuedMessage,
+  handleSendQueuedNow,
+  editLabel,
+  sendNowLabel,
+}: QueueTrackProps): ReactElement | null {
+  const { t } = useTranslation();
+  const { isExpanded, onToggle } = useComposerAccessory("queue");
+
   if (queuedMessages.length === 0) return null;
+
+  const label = t("composer.attachments.queuedMessages", { count: queuedMessages.length });
+
   return (
-    <View style={styles.queueTrack}>
+    <AccessoryShell id="queue" label={label} expanded={isExpanded} onToggle={onToggle}>
       {queuedMessages.map((item) => (
         <QueuedMessageRow
           key={item.id}
@@ -368,7 +380,7 @@ function renderQueueTrack(args: RenderQueueTrackArgs): ReactElement | null {
           sendNowLabel={sendNowLabel}
         />
       ))}
-    </View>
+    </AccessoryShell>
   );
 }
 
@@ -2024,16 +2036,14 @@ export function Composer({
     [handleOpenAttachment, handleRemoveAttachment, isComposerLocked, selectedAttachments, t],
   );
 
-  const queueList = useMemo(
-    () =>
-      renderQueueTrack({
-        queuedMessages,
-        handleEditQueuedMessage,
-        handleSendQueuedNow,
-        editLabel: t("composer.attachments.editQueuedMessage"),
-        sendNowLabel: t("composer.attachments.sendQueuedMessageNow"),
-      }),
-    [handleEditQueuedMessage, handleSendQueuedNow, queuedMessages, t],
+  const queueList = (
+    <QueueTrack
+      queuedMessages={queuedMessages}
+      handleEditQueuedMessage={handleEditQueuedMessage}
+      handleSendQueuedNow={handleSendQueuedNow}
+      editLabel={t("composer.attachments.editQueuedMessage")}
+      sendNowLabel={t("composer.attachments.sendQueuedMessageNow")}
+    />
   );
 
   const messageInputContainerRef = useRef<View>(null);

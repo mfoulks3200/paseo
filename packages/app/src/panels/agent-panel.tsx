@@ -82,6 +82,12 @@ import {
   useSubagentsForParent,
 } from "@/subagents";
 import { SubagentsTrack } from "@/subagents/track";
+import {
+  AccessoriesTrack,
+  ComposerAccessoryProvider,
+  sortRegistrations,
+  useComposerAccessoryStore,
+} from "@/composer/accessories";
 import type { PendingPermission } from "@/types/shared";
 import type { StreamItem } from "@/types/stream";
 import { getInitDeferred, getInitKey } from "@/utils/agent-initialization";
@@ -1424,6 +1430,13 @@ function ActiveAgentComposer({
     serverId,
     parentAgentId: agentId,
   });
+  const accessoryRegistrations = useComposerAccessoryStore(
+    (s) => s.registrations,
+  );
+  const sortedAccessories = useMemo(
+    () => sortRegistrations([...accessoryRegistrations.values()]),
+    [accessoryRegistrations],
+  );
   const canDetachSubagents = useSessionStore(
     (state) => state.sessions[serverId]?.serverInfo?.features?.agentDetach === true,
   );
@@ -1543,41 +1556,49 @@ function ActiveAgentComposer({
   );
 
   return (
-    <ReanimatedAnimated.View style={inputAreaStyle} onLayout={onInputAreaLayout}>
-      <SubagentsTrack
-        rows={subagentRows}
-        onOpenSubagent={handleOpenSubagent}
-        onOpenProviderSubagent={handleOpenProviderSubagent}
-        onArchiveSubagent={handleArchiveSubagent}
-        onArchiveFinished={handleHideFinishedProviderSubagents}
-        onDetachSubagent={canDetachSubagents ? handleDetachSubagent : undefined}
-      />
-      <Composer
-        agentId={agentId}
-        serverId={serverId}
-        workspaceId={workspaceId}
-        externalKeyboardShift
-        isPaneFocused={isPaneFocused}
-        value={agentInputDraft.text}
-        onChangeText={agentInputDraft.setText}
-        attachments={agentInputDraft.attachments}
-        attachmentScopeKeys={attachmentScopeKeys}
-        onOpenWorkspaceAttachment={handleOpenWorkspaceAttachment}
-        onChangeAttachments={agentInputDraft.setAttachments}
-        cwd={cwd}
-        clearDraft={agentInputDraft.clear}
-        autoFocus={isPaneFocused}
-        autoFocusKey={String(agentInputDraft.attachmentFocusRequestId)}
-        isSubmitLoading={isSubmitLoading}
-        onAttentionInputFocus={onAttentionInputFocus}
-        onAttentionPromptSend={onAttentionPromptSend}
-        onComposerHeightChange={onComposerHeightChange}
-        onMessageSent={onMessageSent}
-        onClientSlashCommand={handleClientSlashCommand}
-        footer={composerFooter}
-        isCompactLayout={isCompactComposerLayout}
-      />
-    </ReanimatedAnimated.View>
+    <ComposerAccessoryProvider agentId={agentId} serverId={serverId} workspaceId={workspaceId}>
+      <ReanimatedAnimated.View style={inputAreaStyle} onLayout={onInputAreaLayout}>
+        <AccessoriesTrack
+          registrations={sortedAccessories}
+          agentId={agentId}
+          serverId={serverId}
+          workspaceId={workspaceId}
+        />
+        <SubagentsTrack
+          rows={subagentRows}
+          onOpenSubagent={handleOpenSubagent}
+          onOpenProviderSubagent={handleOpenProviderSubagent}
+          onArchiveSubagent={handleArchiveSubagent}
+          onArchiveFinished={handleHideFinishedProviderSubagents}
+          onDetachSubagent={canDetachSubagents ? handleDetachSubagent : undefined}
+        />
+        <Composer
+          agentId={agentId}
+          serverId={serverId}
+          workspaceId={workspaceId}
+          externalKeyboardShift
+          isPaneFocused={isPaneFocused}
+          value={agentInputDraft.text}
+          onChangeText={agentInputDraft.setText}
+          attachments={agentInputDraft.attachments}
+          attachmentScopeKeys={attachmentScopeKeys}
+          onOpenWorkspaceAttachment={handleOpenWorkspaceAttachment}
+          onChangeAttachments={agentInputDraft.setAttachments}
+          cwd={cwd}
+          clearDraft={agentInputDraft.clear}
+          autoFocus={isPaneFocused}
+          autoFocusKey={String(agentInputDraft.attachmentFocusRequestId)}
+          isSubmitLoading={isSubmitLoading}
+          onAttentionInputFocus={onAttentionInputFocus}
+          onAttentionPromptSend={onAttentionPromptSend}
+          onComposerHeightChange={onComposerHeightChange}
+          onMessageSent={onMessageSent}
+          onClientSlashCommand={handleClientSlashCommand}
+          footer={composerFooter}
+          isCompactLayout={isCompactComposerLayout}
+        />
+      </ReanimatedAnimated.View>
+    </ComposerAccessoryProvider>
   );
 }
 

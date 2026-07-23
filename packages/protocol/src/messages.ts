@@ -1492,6 +1492,67 @@ export const AgentRewindResponseMessageSchema = z.object({
   }),
 });
 
+// ============================================================================
+// Composer Accessory v2 Protocol Extension
+// ============================================================================
+// COMPAT(accessories): added in v0.2.X. The accessory namespace carries daemon-side
+// data for composer accessories. Clients that predate the capability receive no
+// accessory messages; daemons that predate it ignore accessory requests. Drop the
+// compat gate when daemon and client floor >= v0.2.X.
+
+/**
+ * Request accessory-specific data for an agent.
+ * Client → Daemon: correlated with accessory.data.response.
+ */
+export const AccessoryDataRequestSchema = z.object({
+  type: z.literal("accessory.data.request"),
+  agentId: z.string(),
+  accessoryId: z.string(),
+  requestId: z.string(),
+});
+
+/**
+ * Response to an accessory.data.request.
+ * Daemon → Client: carries the accessory payload or an error.
+ */
+export const AccessoryDataResponseSchema = z.object({
+  type: z.literal("accessory.data.response"),
+  payload: z.object({
+    requestId: z.string(),
+    agentId: z.string(),
+    accessoryId: z.string(),
+    data: z.unknown().nullable(),
+    error: z.string().nullable(),
+  }),
+});
+
+/**
+ * Push update for an accessory's data.
+ * Daemon → Client: fires when an accessory's state changes (e.g.,
+ * a new artifact is generated, a checklist item is toggled).
+ * Clients without the accessories capability ignore this message.
+ */
+export const AccessoryUpdateSchema = z.object({
+  type: z.literal("accessory.update"),
+  payload: z.discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("upsert"),
+      agentId: z.string(),
+      accessoryId: z.string(),
+      data: z.unknown(),
+    }),
+    z.object({
+      kind: z.literal("remove"),
+      agentId: z.string(),
+      accessoryId: z.string(),
+    }),
+  ]),
+});
+
+export type AccessoryDataRequest = z.infer<typeof AccessoryDataRequestSchema>;
+export type AccessoryDataResponse = z.infer<typeof AccessoryDataResponseSchema>;
+export type AccessoryUpdate = z.infer<typeof AccessoryUpdateSchema>;
+
 export const UpdateAgentResponseMessageSchema = z.object({
   type: z.literal("update_agent_response"),
   payload: AgentActionResponsePayloadSchema,
@@ -2466,6 +2527,7 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   SetAgentFeatureRequestMessageSchema,
   AgentDetachRequestMessageSchema,
   AgentRewindRequestMessageSchema,
+  AccessoryDataRequestSchema,
   AgentPermissionResponseMessageSchema,
   CheckoutStatusRequestSchema,
   SubscribeCheckoutDiffRequestSchema,
@@ -2789,6 +2851,8 @@ export const ServerInfoStatusPayloadSchema = z
         selectiveAgentTimeline: z.boolean().optional(),
         // COMPAT(stableProjectIdentity): added in v0.1.109, remove gate after 2027-01-15.
         stableProjectIdentity: z.boolean().optional(),
+        // COMPAT(accessories): added in v0.2.X, drop the gate when daemon and client floor >= v0.2.X.
+        accessories: z.boolean().optional(),
       })
       .optional(),
   })
@@ -5150,6 +5214,8 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   SetAgentFeatureResponseMessageSchema,
   AgentDetachResponseMessageSchema,
   AgentRewindResponseMessageSchema,
+  AccessoryDataResponseSchema,
+  AccessoryUpdateSchema,
   UpdateAgentResponseMessageSchema,
   ProjectRenameResponseSchema,
   ProjectRemoveResponseSchema,
@@ -5682,6 +5748,7 @@ export const WSHelloMessageSchema = z.object({
       [CLIENT_CAPS.providerSubagents]: z.boolean().optional(),
       [CLIENT_CAPS.projectUpdates]: z.boolean().optional(),
       [CLIENT_CAPS.browserHost]: BrowserAutomationHostCapabilitySchema.optional(),
+      [CLIENT_CAPS.accessories]: z.boolean().optional(),
     })
     .passthrough()
     .optional(),

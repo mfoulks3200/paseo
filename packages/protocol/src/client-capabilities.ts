@@ -21,6 +21,11 @@ export const CLIENT_CAPS = {
   // COMPAT(projectUpdates): added in v0.1.109, remove gate after 2027-01-15.
   projectUpdates: "project_updates",
   browserHost: "browser_host",
+  // COMPAT(accessories): added in v0.2.X. The daemon gates accessory.* messages
+  // on this capability. Clients that advertise it receive accessory.update pushes
+  // and can send accessory.data.request RPCs. Drop the gate when daemon and client
+  // floor >= v0.2.X.
+  accessories: "accessories",
 } as const;
 
 export type ClientCapability = (typeof CLIENT_CAPS)[keyof typeof CLIENT_CAPS];
