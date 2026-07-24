@@ -1,17 +1,22 @@
 import { useCallback, useMemo, useState, type ReactElement } from "react";
-import { Pressable, ScrollView, Text, View, type PressableStateCallbackType } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
-import { Archive, ChevronDown, ChevronRight, Unlink } from "lucide-react-native";
+import { Archive, Unlink } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { getProviderIcon } from "@/components/provider-icons";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useIsCompactFormFactor, MAX_CONTENT_WIDTH } from "@/constants/layout";
+import { useIsCompactFormFactor } from "@/constants/layout";
 import { isNative } from "@/constants/platform";
 import {
   WorkspaceTabIcon,
   type WorkspaceTabPresentation,
 } from "@/screens/workspace/workspace-tab-presentation";
 import type { Theme } from "@/styles/theme";
+import { useRegisterComposerAccessory } from "@/composer/accessories/use-register-accessory";
+import type {
+  ComposerAccessoryRegistration,
+  ComposerAccessoryContentProps,
+} from "@/composer/accessories/types";
 import type { SubagentRow } from "./select";
 import {
   buildSubagentRowPresentationData,
@@ -20,8 +25,6 @@ import {
 } from "./track-presentation";
 
 const ThemedArchive = withUnistyles(Archive);
-const ThemedChevronDown = withUnistyles(ChevronDown);
-const ThemedChevronRight = withUnistyles(ChevronRight);
 const ThemedUnlink = withUnistyles(Unlink);
 
 const foregroundColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
@@ -38,8 +41,6 @@ export interface SubagentsTrackProps {
   onDetachSubagent?: (id: string) => void;
 }
 
-const SUBAGENTS_LIST_MAX_HEIGHT = 200;
-
 function buildRowPresentation(row: SubagentRow): WorkspaceTabPresentation {
   const data = buildSubagentRowPresentationData(row);
   return {
@@ -50,6 +51,11 @@ function buildRowPresentation(row: SubagentRow): WorkspaceTabPresentation {
   };
 }
 
+/**
+ * SubagentsTrack registers its content into the global composer accessory
+ * store so it renders through the unified AccessoriesTrack. The component
+ * itself returns null — all visible rendering is done by AccessoriesTrack.
+ */
 export function SubagentsTrack({
   rows,
   onOpenSubagent,
@@ -59,93 +65,55 @@ export function SubagentsTrack({
   onDetachSubagent,
 }: SubagentsTrackProps): ReactElement | null {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
 
-  const toggleExpanded = useCallback(() => {
-    setExpanded((current) => !current);
-  }, []);
+  const registration = useMemo((): ComposerAccessoryRegistration | null => {
+    if (rows.length === 0) return null;
 
-  const surfaceStyle = useMemo(
-    () => [styles.surface, expanded && styles.surfaceExpanded],
-    [expanded],
-  );
+    const finished = countFinishedSubagents(rows);
+    const action =
+      finished > 0 && onArchiveFinished
+        ? {
+            label: t("subagents.archiveFinishedAction"),
+            icon: <ThemedArchive size={14} uniProps={foregroundColorMapping} />,
+            onPress: onArchiveFinished,
+          }
+        : undefined;
 
-  const headerStyle = useCallback(
-    ({ hovered, pressed }: PressableStateCallbackType) => [
-      styles.headerToggle,
-      (hovered || pressed) && styles.headerActive,
-    ],
-    [],
-  );
-  const headerContainerStyle = useMemo(
-    () => [styles.header, expanded ? styles.headerDivider : styles.headerCollapsed],
-    [expanded],
-  );
+    const Content = (_props: ComposerAccessoryContentProps) => (
+      <>
+        {rows.map((row) => (
+          <SubagentsTrackRow
+            key={row.id}
+            row={row}
+            onOpenSubagent={onOpenSubagent}
+            onOpenProviderSubagent={onOpenProviderSubagent}
+            onArchiveSubagent={onArchiveSubagent}
+            onDetachSubagent={onDetachSubagent}
+          />
+        ))}
+      </>
+    );
+    Content.displayName = "SubagentsTrackContent";
 
-  if (rows.length === 0) {
-    return null;
-  }
+    return {
+      id: "subagents",
+      priority: 10,
+      label: formatHeaderLabel(rows),
+      content: Content,
+      action,
+    };
+  }, [
+    rows,
+    onOpenSubagent,
+    onOpenProviderSubagent,
+    onArchiveSubagent,
+    onDetachSubagent,
+    onArchiveFinished,
+    t,
+  ]);
 
-  const headerLabel = formatHeaderLabel(rows);
-  const finishedCount = countFinishedSubagents(rows);
-
-  return (
-    <View style={styles.outer} testID="subagents-track">
-      <View style={styles.track}>
-        <View style={surfaceStyle}>
-          <View style={headerContainerStyle}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={headerLabel}
-              testID="subagents-track-header"
-              onPress={toggleExpanded}
-              style={headerStyle}
-            >
-              {expanded ? (
-                <ThemedChevronDown size={12} uniProps={foregroundMutedColorMapping} />
-              ) : (
-                <ThemedChevronRight size={12} uniProps={foregroundMutedColorMapping} />
-              )}
-              <Text style={styles.headerLabel} numberOfLines={1}>
-                {headerLabel}
-              </Text>
-            </Pressable>
-            {finishedCount > 0 && onArchiveFinished ? (
-              <View style={styles.headerAction}>
-                <SubagentActionButton
-                  accessibilityLabel={t("subagents.archiveFinishedAction")}
-                  testID="subagents-track-archive-finished"
-                  tooltipLabel={t("subagents.archiveFinishedTooltip")}
-                  icon="archive"
-                  visible
-                  onPress={onArchiveFinished}
-                />
-              </View>
-            ) : null}
-          </View>
-          {expanded ? (
-            <ScrollView
-              style={styles.scroll}
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-              nestedScrollEnabled
-            >
-              {rows.map((row) => (
-                <SubagentsTrackRow
-                  key={row.id}
-                  row={row}
-                  onOpenSubagent={onOpenSubagent}
-                  onOpenProviderSubagent={onOpenProviderSubagent}
-                  onArchiveSubagent={onArchiveSubagent}
-                  onDetachSubagent={onDetachSubagent}
-                />
-              ))}
-            </ScrollView>
-          ) : null}
-        </View>
-      </View>
-    </View>
-  );
+  useRegisterComposerAccessory(registration);
+  return null;
 }
 
 interface SubagentsTrackRowProps {
@@ -308,68 +276,6 @@ function SubagentActionButton({
 }
 
 const styles = StyleSheet.create((theme) => ({
-  outer: {
-    width: "100%",
-    alignItems: "center",
-    paddingHorizontal: theme.spacing[4],
-  },
-  track: {
-    width: "100%",
-    maxWidth: MAX_CONTENT_WIDTH,
-    marginBottom: -theme.spacing[4],
-  },
-  surface: {
-    alignSelf: "stretch",
-    backgroundColor: theme.colors.surface1,
-    borderWidth: theme.borderWidth[1],
-    borderColor: theme.colors.borderAccent,
-    borderBottomWidth: 0,
-    borderTopLeftRadius: theme.borderRadius["2xl"],
-    borderTopRightRadius: theme.borderRadius["2xl"],
-    overflow: "hidden",
-  },
-  surfaceExpanded: {
-    paddingBottom: theme.spacing[4],
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  headerToggle: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[2],
-    paddingLeft: theme.spacing[3],
-    paddingRight: theme.spacing[1],
-    paddingVertical: theme.spacing[2],
-  },
-  headerAction: {
-    paddingRight: theme.spacing[2],
-  },
-  headerCollapsed: {
-    paddingBottom: theme.spacing[4],
-  },
-  headerActive: {
-    backgroundColor: theme.colors.surface2,
-  },
-  headerDivider: {
-    borderBottomWidth: theme.borderWidth[1],
-    borderBottomColor: theme.colors.border,
-  },
-  headerLabel: {
-    flexShrink: 1,
-    minWidth: 0,
-    fontSize: theme.fontSize.xs,
-    color: theme.colors.foregroundMuted,
-  },
-  scroll: {
-    maxHeight: SUBAGENTS_LIST_MAX_HEIGHT,
-  },
-  scrollContent: {
-    paddingVertical: theme.spacing[1],
-  },
   row: {
     flexDirection: "row",
     alignItems: "center",
