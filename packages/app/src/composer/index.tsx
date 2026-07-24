@@ -33,8 +33,11 @@ import {
   Paperclip,
 } from "lucide-react-native";
 import Animated from "react-native-reanimated";
-import { AccessoryShell } from "@/composer/accessories/accessory-shell";
-import { useComposerAccessory } from "@/composer/accessories/context";
+import { useRegisterComposerAccessory } from "@/composer/accessories/use-register-accessory";
+import type {
+  ComposerAccessoryRegistration,
+  ComposerAccessoryContentProps,
+} from "@/composer/accessories/types";
 import { FOOTER_HEIGHT, MAX_CONTENT_WIDTH } from "@/constants/layout";
 import {
   AgentControls,
@@ -354,6 +357,11 @@ interface QueueTrackProps {
   sendNowLabel: string;
 }
 
+/**
+ * QueueTrack registers its content into the global composer accessory
+ * store so it renders through the unified AccessoriesTrack. The component
+ * itself returns null — all visible rendering is done by AccessoriesTrack.
+ */
 function QueueTrack({
   queuedMessages,
   handleEditQueuedMessage,
@@ -362,26 +370,38 @@ function QueueTrack({
   sendNowLabel,
 }: QueueTrackProps): ReactElement | null {
   const { t } = useTranslation();
-  const { isExpanded, onToggle } = useComposerAccessory("queue");
 
-  if (queuedMessages.length === 0) return null;
+  const registration = useMemo((): ComposerAccessoryRegistration | null => {
+    if (queuedMessages.length === 0) return null;
 
-  const label = t("composer.attachments.queuedMessages", { count: queuedMessages.length });
+    const label = t("composer.attachments.queuedMessages", { count: queuedMessages.length });
 
-  return (
-    <AccessoryShell id="queue" label={label} expanded={isExpanded} onToggle={onToggle}>
-      {queuedMessages.map((item) => (
-        <QueuedMessageRow
-          key={item.id}
-          item={item}
-          onEdit={handleEditQueuedMessage}
-          onSendNow={handleSendQueuedNow}
-          editLabel={editLabel}
-          sendNowLabel={sendNowLabel}
-        />
-      ))}
-    </AccessoryShell>
-  );
+    const Content = (_props: ComposerAccessoryContentProps) => (
+      <>
+        {queuedMessages.map((item) => (
+          <QueuedMessageRow
+            key={item.id}
+            item={item}
+            onEdit={handleEditQueuedMessage}
+            onSendNow={handleSendQueuedNow}
+            editLabel={editLabel}
+            sendNowLabel={sendNowLabel}
+          />
+        ))}
+      </>
+    );
+    Content.displayName = "QueueTrackContent";
+
+    return {
+      id: "queue",
+      priority: 20,
+      label,
+      content: Content,
+    };
+  }, [queuedMessages, handleEditQueuedMessage, handleSendQueuedNow, editLabel, sendNowLabel, t]);
+
+  useRegisterComposerAccessory(registration);
+  return null;
 }
 
 interface RenderComposerAttachmentPillArgs {

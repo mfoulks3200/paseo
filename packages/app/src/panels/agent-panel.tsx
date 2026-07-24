@@ -1430,9 +1430,7 @@ function ActiveAgentComposer({
     serverId,
     parentAgentId: agentId,
   });
-  const accessoryRegistrations = useComposerAccessoryStore(
-    (s) => s.registrations,
-  );
+  const accessoryRegistrations = useComposerAccessoryStore((s) => s.registrations);
   const sortedAccessories = useMemo(
     () => sortRegistrations([...accessoryRegistrations.values()]),
     [accessoryRegistrations],

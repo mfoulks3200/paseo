@@ -12,8 +12,11 @@ import {
   type WorkspaceTabPresentation,
 } from "@/screens/workspace/workspace-tab-presentation";
 import type { Theme } from "@/styles/theme";
-import { AccessoryShell } from "@/composer/accessories/accessory-shell";
-import { useComposerAccessory } from "@/composer/accessories/context";
+import { useRegisterComposerAccessory } from "@/composer/accessories/use-register-accessory";
+import type {
+  ComposerAccessoryRegistration,
+  ComposerAccessoryContentProps,
+} from "@/composer/accessories/types";
 import type { SubagentRow } from "./select";
 import {
   buildSubagentRowPresentationData,
@@ -48,6 +51,11 @@ function buildRowPresentation(row: SubagentRow): WorkspaceTabPresentation {
   };
 }
 
+/**
+ * SubagentsTrack registers its content into the global composer accessory
+ * store so it renders through the unified AccessoriesTrack. The component
+ * itself returns null — all visible rendering is done by AccessoriesTrack.
+ */
 export function SubagentsTrack({
   rows,
   onOpenSubagent,
@@ -57,45 +65,55 @@ export function SubagentsTrack({
   onDetachSubagent,
 }: SubagentsTrackProps): ReactElement | null {
   const { t } = useTranslation();
-  const { isExpanded, onToggle } = useComposerAccessory("subagents");
 
-  const headerAction = useMemo(() => {
+  const registration = useMemo((): ComposerAccessoryRegistration | null => {
+    if (rows.length === 0) return null;
+
     const finished = countFinishedSubagents(rows);
-    return finished > 0 && onArchiveFinished
-      ? {
-          label: t("subagents.archiveFinishedAction"),
-          icon: <ThemedArchive size={14} uniProps={foregroundColorMapping} />,
-          onPress: onArchiveFinished,
-        }
-      : undefined;
-  }, [rows, onArchiveFinished, t]);
+    const action =
+      finished > 0 && onArchiveFinished
+        ? {
+            label: t("subagents.archiveFinishedAction"),
+            icon: <ThemedArchive size={14} uniProps={foregroundColorMapping} />,
+            onPress: onArchiveFinished,
+          }
+        : undefined;
 
-  if (rows.length === 0) {
-    return null;
-  }
+    const Content = (_props: ComposerAccessoryContentProps) => (
+      <>
+        {rows.map((row) => (
+          <SubagentsTrackRow
+            key={row.id}
+            row={row}
+            onOpenSubagent={onOpenSubagent}
+            onOpenProviderSubagent={onOpenProviderSubagent}
+            onArchiveSubagent={onArchiveSubagent}
+            onDetachSubagent={onDetachSubagent}
+          />
+        ))}
+      </>
+    );
+    Content.displayName = "SubagentsTrackContent";
 
-  const headerLabel = formatHeaderLabel(rows);
+    return {
+      id: "subagents",
+      priority: 10,
+      label: formatHeaderLabel(rows),
+      content: Content,
+      action,
+    };
+  }, [
+    rows,
+    onOpenSubagent,
+    onOpenProviderSubagent,
+    onArchiveSubagent,
+    onDetachSubagent,
+    onArchiveFinished,
+    t,
+  ]);
 
-  return (
-    <AccessoryShell
-      id="subagents"
-      label={headerLabel}
-      expanded={isExpanded}
-      onToggle={onToggle}
-      action={headerAction}
-    >
-      {rows.map((row) => (
-        <SubagentsTrackRow
-          key={row.id}
-          row={row}
-          onOpenSubagent={onOpenSubagent}
-          onOpenProviderSubagent={onOpenProviderSubagent}
-          onArchiveSubagent={onArchiveSubagent}
-          onDetachSubagent={onDetachSubagent}
-        />
-      ))}
-    </AccessoryShell>
-  );
+  useRegisterComposerAccessory(registration);
+  return null;
 }
 
 interface SubagentsTrackRowProps {
